@@ -542,6 +542,7 @@ class Prediction:
         battery_temperature_charge_curve_tuple = charge_curve_to_tuple(self.battery_temperature_charge_curve)
         battery_temperature_discharge_curve_tuple = charge_curve_to_tuple(self.battery_temperature_discharge_curve)
         calculate_export_on_pv = self.calculate_export_on_pv
+        have_pause_mode = self.have_pause_mode
 
         # For the PV10 case we apply some de-rating to the battery charge rate to be more pessimistic
         if pv10:
@@ -917,6 +918,22 @@ class Prediction:
                         pv_in_period = pv_compare / step * charge_time_remains
                         potential_import = min((charge_rate_now_curve * charge_time_remains) - pv_in_period, (charge_limit_n - soc))
                         metric_keep += max(potential_import * import_rate, 0)
+            #elif set_export_freeze and export_window_active and export_limit_now < 100.0 and (export_limit_now == 99.0 or set_export_freeze_only) and not have_pause_mode:
+            #    pv_ac = min(pv_now + load_yesterday, export_limit)
+            #    charge_rate_now_dc = max(pv_now - (pv_ac * inverter_loss_ac), 0)
+            #    charge_rate_now_curve_dc = (
+            #        get_charge_rate_curve_cached(soc, charge_rate_now_dc, soc_max, battery_rate_max_charge_dc, battery_charge_power_curve_tuple, battery_rate_min, battery_temperature, battery_temperature_charge_curve_tuple)
+            #        * battery_rate_max_scaling
+            #    )
+            #    battery_draw = max(-charge_rate_now_curve_dc, -battery_to_max)
+            #    pv_dc = abs(battery_draw)
+
+            #    if battery_draw < 0:
+            #        battery_state = "e+"
+            #    else:
+            #        battery_state = "e~"
+                
+                #self.log((self.midnight_utc + timedelta(seconds=60 * minute_absolute)).strftime(TIME_FORMAT) + " pv_now: " + str(round(pv_now, 2)) + " pv_ac: " + str(round(pv_ac, 2)) + " charge_rate_now_dc: " + str(round(charge_rate_now_dc, 2)) + " battery_draw: " + str(round(battery_draw, 2)) + " battery_to_max: " + str(round(battery_to_max, 2)))
             else:
                 # ECO Mode
                 pv_ac = pv_now * inverter_loss_ac
@@ -939,7 +956,7 @@ class Prediction:
                     # Battery draw is only subject to inverter limit for the AC part
                     if inverter_hybrid:
                         charge_rate_now_dc = battery_rate_max_charge_dc
-                        # Freeze mode
+                        # Freeze mode (inverters with pause mode only)
                         if set_export_freeze and export_window_active and export_limit_now < 100.0 and (export_limit_now == 99.0 or set_export_freeze_only):
                             charge_rate_now_dc = battery_rate_min  # 0
 
