@@ -195,7 +195,7 @@ class Prediction:
             self.prediction_cache = {}
             self.plan_interval_minutes = base.plan_interval_minutes
             self.charge_scaling10 = base.charge_scaling10
-            self.have_pause_mode = base.pause_mode is not None and len(base.pause_mode) > 0
+            self.have_pause_mode = hasattr(base, 'pause_mode') and len(base.pause_mode) > 0
 
             # Store this dictionary in global so we can reconstruct it in the thread without passing the data
             PRED_GLOBAL["dict"] = self.__dict__.copy()
@@ -927,22 +927,24 @@ class Prediction:
                         pv_in_period = pv_compare / step * charge_time_remains
                         potential_import = min((charge_rate_now_curve * charge_time_remains) - pv_in_period, (charge_limit_n - soc))
                         metric_keep += max(potential_import * import_rate, 0)
-            #elif set_export_freeze and export_window_active and export_limit_now < 100.0 and (export_limit_now == 99.0 or set_export_freeze_only) and not have_pause_mode:
-            #    pv_ac = min(pv_now + load_yesterday, export_limit)
-            #    charge_rate_now_dc = max(pv_now - (pv_ac * inverter_loss_ac), 0)
-            #    charge_rate_now_curve_dc = (
-            #        get_charge_rate_curve_cached(soc, charge_rate_now_dc, soc_max, battery_rate_max_charge_dc, battery_charge_power_curve_tuple, battery_rate_min, battery_temperature, battery_temperature_charge_curve_tuple)
-            #        * battery_rate_max_scaling
-            #    )
-            #    battery_draw = max(-charge_rate_now_curve_dc, -battery_to_max)
-            #    pv_dc = abs(battery_draw)
+            elif set_export_freeze and export_window_active and export_limit_now < 100.0 and (export_limit_now == 99.0 or set_export_freeze_only) and not have_pause_mode:
+                pv_ac = (min(pv_now, export_limit) + load_yesterday) * inverter_loss_ac
+                charge_rate_now_dc = pv_now - pv_ac
+                charge_rate_now_curve_dc = (
+                    get_charge_rate_curve_cached(soc, charge_rate_now_dc, soc_max, battery_rate_max_charge_dc, battery_charge_power_curve_tuple, battery_rate_min, battery_temperature, battery_temperature_charge_curve_tuple)
+                    * battery_rate_max_scaling
+                )
+                battery_draw = max(-charge_rate_now_curve_dc, -battery_to_max)
+                pv_dc = -battery_draw
 
-            #    if battery_draw < 0:
-            #        battery_state = "e+"
-            #    else:
-            #        battery_state = "e~"
+                if battery_draw < 0:
+                    battery_state = "e+"
+                elif battery_draw == 0:
+                    battery_state = "e~"
+                else:
+                    battery_state = "e-"
                 
-                #self.log((self.midnight_utc + timedelta(seconds=60 * minute_absolute)).strftime(TIME_FORMAT) + " pv_now: " + str(round(pv_now, 2)) + " pv_ac: " + str(round(pv_ac, 2)) + " charge_rate_now_dc: " + str(round(charge_rate_now_dc, 2)) + " battery_draw: " + str(round(battery_draw, 2)) + " battery_to_max: " + str(round(battery_to_max, 2)))
+                #self.log((self.midnight_utc + timedelta(seconds=60 * minute_absolute)).strftime(TIME_FORMAT) + " pv_now: " + str(round(pv_now, 2)) + " pv_ac: " + str(round(pv_ac, 2)) + " export_limit: " + str(round(export_limit, 2)) + " load_yesterday: " + str(round(load_yesterday, 2)) + " charge_rate_now_dc: " + str(round(charge_rate_now_dc, 2)) + " battery_draw: " + str(round(battery_draw, 2)) + " battery_to_max: " + str(round(battery_to_max, 2)))
             else:
                 # ECO Mode
                 pv_ac = pv_now * inverter_loss_ac
